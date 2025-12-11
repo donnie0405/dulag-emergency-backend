@@ -7,6 +7,7 @@ const generateOTP = () => {
 };
 
 // Register
+// Register - AUTO VERIFY (skip OTP)
 exports.register = async (req, res) => {
   try {
     const { fullName, email, password, phoneNumber } = req.body;
@@ -22,39 +23,49 @@ exports.register = async (req, res) => {
       });
     }
 
-    // Generate OTP
-    const otp = generateOTP();
-    const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-
-    // Create user
+    // Create user - AUTO VERIFIED
     const user = await User.create({
       fullName,
       email: email.toLowerCase(),
       password,
       phoneNumber,
-      otp,
-      otpExpires,
-      isVerified: false
+      isVerified: true,  // ← AUTO VERIFY (skip OTP)
+      otp: null,
+      otpExpires: null
     });
 
-    console.log('✅ User created, OTP:', otp);
+    console.log('✅ User created and auto-verified:', user.email);
+
+    // Generate token immediately
+    const token = jwt.sign(
+      { id: user._id, type: 'user' },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    console.log('✅ Token generated');
 
     res.status(201).json({
       success: true,
-      message: 'Registration successful. Please verify OTP.',
-      otp: otp, // In production, send via SMS/Email
-      userId: user._id
+      message: 'Registration successful',
+      token,
+      user: {
+        id: user._id,
+        fullName: user.fullName,
+        email: user.email,
+        phoneNumber: user.phoneNumber,
+        isVerified: true
+      }
     });
   } catch (error) {
     console.error('❌ Registration error:', error);
     res.status(500).json({
       success: false,
-      message: 'Registration failed',
+      message: 'Registration failed: ' + error.message,
       error: error.message
     });
   }
 };
-
 // Verify OTP
 exports.verifyOTP = async (req, res) => {
   try {
@@ -175,13 +186,12 @@ exports.resendOTP = async (req, res) => {
 };
 
 // Login
+// Login
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    console.log('=== LOGIN DEBUG ===');
-    console.log('Email:', email);
-    console.log('==================');
+    console.log('🔐 Login attempt:', email);
 
     if (!email || !password) {
       return res.status(400).json({
@@ -202,19 +212,12 @@ exports.login = async (req, res) => {
     }
 
     console.log('✅ User found:', user.email);
-    console.log('✅ User verified:', user.isVerified);
 
-    // Check if verified
-    if (!user.isVerified) {
-      return res.status(401).json({
-        success: false,
-        message: 'Please verify your account with OTP first'
-      });
-    }
-
+    // REMOVED OTP CHECK - Users are auto-verified
+    
     // Check password
     const isPasswordMatch = await user.comparePassword(password);
-    console.log('✅ Password match:', isPasswordMatch);
+    console.log('Password match:', isPasswordMatch);
     
     if (!isPasswordMatch) {
       return res.status(401).json({
@@ -225,12 +228,12 @@ exports.login = async (req, res) => {
 
     // Generate token
     const token = jwt.sign(
-      { id: user._id },
+      { id: user._id, type: 'user' },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
 
-    console.log('✅ Token generated successfully');
+    console.log('✅ Login successful');
 
     res.status(200).json({
       success: true,
