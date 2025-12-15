@@ -59,9 +59,8 @@ io.on('connection', (socket) => {
       timestamp: new Date()
     });
   });
-<<<<<<< HEAD
+
   
-=======
   socket.on('responder-location-update', (data) => {
     console.log('📍 Responder location update received:', data);
     
@@ -92,7 +91,7 @@ io.on('connection', (socket) => {
     
     console.log('✅ Status update broadcasted');
   });
->>>>>>> 4e239071b749af7f534b8b920c79553e33195f71
+
   // User location update (optional)
   socket.on('user-location-update', (data) => {
     const { emergencyId, location, userId } = data;
@@ -148,10 +147,10 @@ const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`🚀 Server is running on port ${PORT}`);
   console.log(`📍 Local: http://localhost:${PORT}`);
-<<<<<<< HEAD
+
   console.log(`📍 Network: http://192.168.3.48:${PORT}`);
-=======
-  console.log(`📍 Network: http://192.168.68.114:${PORT}`);
->>>>>>> 4e239071b749af7f534b8b920c79553e33195f71
+
+  console.log(`📍 Network: http://192.168.3.48:${PORT}`);
+
   console.log(`🔌 WebSocket: Active`);
 });

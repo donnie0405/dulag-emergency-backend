@@ -46,7 +46,7 @@ router.post('/request', protect, async (req, res) => {
   }
 });
 
-// Get all emergency requests - NO AUTHENTICATION (for admin dashboard)
+// Get all emergency requests - NO AUTHENTICATION
 router.get('/requests', async (req, res) => {
   try {
     const EmergencyRequest = require('../models/EmergencyRequest');
@@ -56,7 +56,7 @@ router.get('/requests', async (req, res) => {
       .populate('responderId', 'stationName stationType')
       .sort({ createdAt: -1 });
     
-    console.log(`✅ Fetched ${requests.length} requests for admin dashboard`);
+    console.log(`✅ Fetched ${requests.length} requests`);
     
     res.json({
       success: true,
@@ -72,7 +72,7 @@ router.get('/requests', async (req, res) => {
   }
 });
 
-// Get user's own requests (requires auth)
+// Get user's own requests
 router.get('/my-requests', protect, async (req, res) => {
   try {
     const EmergencyRequest = require('../models/EmergencyRequest');
@@ -98,7 +98,7 @@ router.get('/my-requests', protect, async (req, res) => {
   }
 });
 
-// Update request status - NO AUTH (responders can update)
+// Update request status
 router.put('/requests/:id/status', async (req, res) => {
   try {
     const { status, responderId } = req.body;
@@ -130,8 +130,6 @@ router.put('/requests/:id/status', async (req, res) => {
     // Broadcast status update via WebSocket
     const io = req.app.get('io');
     if (io) {
-      console.log('📡 Broadcasting status update...');
-      
       io.to(req.params.id).emit('emergency-status', {
         emergencyId: req.params.id,
         status: status,
@@ -159,7 +157,7 @@ router.put('/requests/:id/status', async (req, res) => {
   }
 });
 
-// Update responder location - NO AUTH
+// Update responder location
 router.put('/requests/:id/location', async (req, res) => {
   try {
     const { location } = req.body;
@@ -193,7 +191,7 @@ router.put('/requests/:id/location', async (req, res) => {
   }
 });
 
-// Complete emergency - NO AUTH
+// Complete emergency
 router.put('/requests/:id/complete', async (req, res) => {
   try {
     const EmergencyRequest = require('../models/EmergencyRequest');
@@ -248,7 +246,7 @@ router.put('/requests/:id/complete', async (req, res) => {
   }
 });
 
-// Get single request - NO AUTH
+// Get single request
 router.get('/requests/:id', async (req, res) => {
   try {
     const EmergencyRequest = require('../models/EmergencyRequest');
@@ -273,6 +271,68 @@ router.get('/requests/:id', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch request',
+      error: error.message
+    });
+  }
+});
+
+// Get route between two points
+router.post('/route', async (req, res) => {
+  try {
+    const { start, end } = req.body;
+    
+    if (!start || !end || !start.latitude || !start.longitude || !end.latitude || !end.longitude) {
+      return res.status(400).json({
+        success: false,
+        message: 'Start and end coordinates are required'
+      });
+    }
+
+    const ORS_API_KEY = '5b3ce3597851100001cf62489dadd80f622454540a42a701b65eec3ca';
+    
+    const axios = require('axios');
+    const response = await axios.post(
+      'https://api.openrouteservice.org/v2/directions/driving-car/geojson',
+      {
+        coordinates: [
+          [start.longitude, start.latitude],
+          [end.longitude, end.latitude]
+        ]
+      },
+      {
+        headers: {
+          'Authorization': ORS_API_KEY,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    if (response.data.features && response.data.features.length > 0) {
+      const feature = response.data.features[0];
+      const coordinates = feature.geometry.coordinates;
+      const distance = (feature.properties.segments[0].distance / 1000).toFixed(2);
+      const duration = Math.ceil(feature.properties.segments[0].duration / 60);
+      
+      return res.json({
+        success: true,
+        data: {
+          coordinates: coordinates.map(coord => [coord[1], coord[0]]), // [lat, lng]
+          distance,
+          duration
+        }
+      });
+    }
+    
+    return res.status(404).json({
+      success: false,
+      message: 'No route found'
+    });
+    
+  } catch (error) {
+    console.error('Route error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching route',
       error: error.message
     });
   }
